@@ -158,10 +158,21 @@ func decodeObjectFields(objValue reflect.Value, body map[string]*json.RawMessage
 	objValueType := objValue.Type()
 	for i := 0; i != objValue.NumField(); i++ {
 		f := objValueType.Field(i)
-		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+		if f.Anonymous {
 			// Recurse into fields of anonymous field
-			if err := decodeObjectFields(objValue.Field(i), body); err != nil {
-				return driver.WithStack(err)
+			if f.Type.Kind() == reflect.Struct {
+				if err := decodeObjectFields(objValue.Field(i), body); err != nil {
+					return driver.WithStack(err)
+				}
+			} else if f.Type.Kind() == reflect.Ptr && f.Type.Elem().Kind() == reflect.Struct {
+				field := objValue.Field(i)
+				if field.IsNil() {
+					field.Set(reflect.New(field.Type().Elem()))
+				}
+
+				if err := decodeObjectFields(field.Elem(), body); err != nil {
+					return driver.WithStack(err)
+				}
 			}
 		} else {
 			// Decode individual field
